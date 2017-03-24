@@ -1,0 +1,249 @@
+Shopping Planner:
+
+Problem statement->
+With the growing number of services and service providers around over the world, the problem has always been to pick the best of the service providers that can match to the requirements of the customers while reducing the overall shopping time.
+Most of the requirements generally involve cost, quality of services, and time taken.
+
+We try to minimize the total travel time required to consume these services. Say for example, a customer wants to shop groceries, furniture, electronics, and automobiles.
+Considering multiple services across his given location, we try to create a path that an individual can take to cover his required services with the optimal path cost.
+
+Services=> shops, agencies, offices, schools etc.
+
+
+Motivation->
+Upon our arrival in US, we were looking for gathering resources for getting settled at our new home. Being completely new in this area, we were searching for shops near our vincinity.
+We went to Groceries shops, Walmart, T-mobile store and other places in search of fulfilling our checklist items.
+However, instead of visiting stores in random order, we can visit them in a planned and optimal path that can reduce our overall shopping time.
+
+Related Work->
+TSP is a NP-hard problem and is attempted by many researchers.
+
+Dataset->
+The data for this project was retrieved from archive.org "Simple GeoPublic Spaces". The dataset is in geoJson format.
+"geometry":{
+    "type":"Point",
+    "coordinates":[
+        103.747574,
+        1.328686
+    ]
+},
+"type":"Feature",
+"id":"SG_0FYsd7fc4ATNgy43CmDL79_1.328686_103.747574@1308163237",
+"properties":{
+    "website":"http://www.nvidia.com",
+    "city":"Singapore ",
+    "name":"NVidia",
+    "country":"MY",
+    "classifiers":[
+        {
+            "category":"Manufacturing",
+            "type":"Manufacturing & Wholesale Goods",
+            "subcategory":"Electronics"
+        }
+    ],
+    "href":"http://api.simplegeo.com/1.0/features/SG_0FYsd7fc4ATNgy43CmDL79_1.328686_103.747574@1308163237.json",
+    "address":"3 International Business Park #01-20A",
+    "owner":"simplegeo",
+    "postcode":"609927"
+}
+
+DataCleansing->
+Need to fetch only the required attributes from this data.
+We fetched the nested fields and brought them outside.
+DataLoading->
+Wrote script in NodeJS which asynchronously spawned threads and read lines from JSON file, parse it and insert into MongoDB.
+We added 2Dsphere index to the data which we needed for the geospatial queries.
+
+> db.shops.findOne()
+{
+        "_id" : ObjectId("583521aac3c47d02f8bb2874"),
+        "extras" : {
+                "geometry" : {
+                        "type" : "Point"
+                },
+                "id" : "SG_2nThiYOyPcB36j0yubq52I_33.316159_-91.292219@1293731398"
+        },
+        "coordinates" : [
+                -91.292219,
+                33.316159
+        ],
+        "type" : "Retail Goods",
+        "category" : "Shopping",
+        "subcategory" : "",
+        "province" : "AR",
+        "city" : "Lake Village",
+        "name" : "Guachoya Cultural Arts Ctr",
+        "tags" : [
+                "art",
+                "gallery",
+                "dealer"
+        ],
+        "country" : "US",
+        "phone" : "+1 870 265 6077",
+        "href" : "http://api.simplegeo.com/1.0/features/SG_2nThiYOyPcB36j0yubq52I_33.316159_-91.292219@1293731398.json",
+        "address" : "1652 US Hwy 65",
+        "owner" : "simplegeo",
+        "postcode" : "71653",
+        "__v" : 0
+}
+
+
+ProblemStatement->
+Customer can select a maximum of 5 categories.
+Total 80 categories.
+User need to set a radius in which he is looking for his required services. If anyone of the service is not available in his given location then he will get a pop-up asking to increase the radius.
+If all services are available in his given radius, the application will pick the services the best shops within his vincinity such that the travelling cost path is the minimum.
+User will be then provided with a map having detailed navigation information of the entire route.
+
+Algorithms->
+TSP => Time complexity O(n!)
+TSP tries to find a hamiltonian cycle with the smallest possible overall routing weight. In other words, TSP tries to answer the following question - "Given a list of cities and the distance between each pair of cities, what is the shortest possible route that visits each city exactly once and returns to the original city?".
+However, in our version of TSP, we need not visit all the service providers. The shortest route needs to be planned between home and only single category type of each of the required service providers.
+
+n=number of categories and m=maximum number of shops per category
+
+1.Nearest Neighbours->
+Calculate distance of every point from home location = O(n*m)
+Form distance matrix = O(n^2).
+Total => O(n^2) + O(n*m);
+
+2. Dijkstra's algorithm-> O((E+V) * log(V))
+3. 2-OPT->Based on randomness
+4. Simulated Annealing
+5. Clustering and Centroid
+
+To note->
+Distance between two points is not the flat distance we are looking for. We need spearical distance.
+MongoDB's distance calculation provided us with the distance between the location co-ordinates.
+Google Maps API provided us with the optimal route between two location co-ordinates when there are multiple routes to reach a particular space.
+Also, Google Maps API makes use of 2-OPT and it majorly solves the TSP problem when provided with multiple points.
+
+6. NN from Home algorithm->(Quick brute force approach)
+1)Start with home location and set the current
+location pointer to home.
+2) Create a list of arrays where each array contains
+service providers for a particular item.
+3) From each of these arrays we shortlist a single
+service provider who has a distance closest to
+home.
+4) Create a distance matrix for home and for each
+of the shortlisted service providers by calculating
+the distances of every service provider with each
+other and from home.
+5) Calculate the sum for each row of this distance
+matrix and select the row with the max sum.
+6) Finally do ordering over the service providers
+by selecting the columns corresponding to the
+ascending order of selected matrix row.
+
+FunctionalFlowDescription->
+User provides the location, radius (in miles), categories
+
+1. All shops/services in US ->
+2. All shops/services within the radius ->
+3. All shops/services serving the product requirement ->
+4. Input to nearest neighbor algorithm ->
+5. Route to various categories -\
+
+Service Architecture=>
+Client browser <--> RESTful & concurrent NodeJS server <--> MongoDB instance
+
+Design->
+
+Designed a scalable RESTful API which can also be consumed by other clients.
+Huge database, constraint for calculating geo-distances, dB with good handling location related information.
+Postgresql -> issues reading geoJSON file
+ArcGIS -> tough to integrate to rest of our application
+Thus, MongoDB :D
+
+NodeJS -> Runtime environment for javascript. Runs a single threaded event loop which delegates the requests to multiple worker threads. Due to such event driven architecture, it supports an asynchronous I/O providing high levels of concurrency and availability.
+
+REST API -> Standardized way to communicate between devices on the internet.
+Involves data transfer in HTML, JS, JSON, XML protocols.
+HTTP verbs-> GET, POST, PUT, DELETE
+
+Created REST API using NodeJS JavaScript environment and Express application framework. Used by the website which fetched HTML pages and made AJAX calls to the NodeJS server.
+
+MongoDB-> NoSQL document based database which stores data in Binary JSON (BJSON) format. It is famous for its fast writes, totally flexible schema design, simple queries etc.
+Support for Geospatial queries. Many inbuilt operators which query on basis of location coordinates.
+$GeoNear finds points near to a certain point within the specified radius.
+These are executed only if there is a 2dsphere index (geospatial index) on the document.
+Geospatial index creates a tree based data-structure from the co-ordinates making retrieval efficient.
+
+MongoDB Aggregation Framework-> Aggregation Pipeline
+Processess data on multiple levels to get aggregrated results.
+Example:: Input -> $geoNear -> $match -> $group -> $sort -> $unwind -> output
+Aggregated query divided in chunks and processed in parallel giving trememdous boost to the performance.
+[Sometimes an alternate to MongoDB's map reduce]
+
+GeoHash->MongoDB requires 2dsphere index to be created before any geospatial operation can be performed on the collection.
+Internally 2Dsphere index works on the concept of geohashing.
+Geohashing->Technique of dividing the entire map into multiple smaller quadrants and assigning unique string of bits to each quadrant. This way, neighboring quadrants always have some part of geohash in common.
+This helps in geospatial queries and can be used to reduce the search space.
+Using geohashes a tree based data structure called the R-tree is created which brings down the geo-spatial searching to O(log(n)) complexity.
+
+CONCLUSION ->
+Thus, we were able to provide a service for users to
+get a descent shortest route according to their shopping
+lists ,i.e., selecting the shops offering the required
+services in the locality and then finding the shortest
+path to traverse these shops. The output route with
+detailed directions along with total distance was also
+displayed on map using Google API.
+
+FUTURE SCOPE->
+1. Cost factor associated with products
+2. Associate search history with each user
+3. Make searching available down to product/sub-categories level.
+4. Android application
+
+Learning (or Restart) ->
+Not to take out the co-ordinates from the geometry parent value.
+Radius was not working becuase we took out the coordinates out.
+
+
+WORKING =>
+localhost:3000/ -> index.js -> index.html
+Browser's popup (to share location)
+Auto populate categories from a distinct.json file
+User can enter upto 5 categories
+Horizontal scroll bar to change radius
+User's location displayed using Google maps with custom home icon.
+User can choose the mode of travel (Driving, Walking, Bicycling)
+
+"main.js"
+> ShoppingPlanner object
+>loop through distinct.json, change radius values.
+>"Get Direction" button will trigger "/get_shortest_path" through ajax calls
+>call ClosestRouteCalculator.find()
+>> radius * 1609 miles conversion
+>> Aggregation pipeline
+>>Shop.aggregate([
+            {
+                $geoNear: {
+                    near: {type: "Point", coordinates: [lng, lat]},
+                    $maxDistance: radius,
+                    spherical: true,
+                    distanceField: "distance",
+                    includeLocs: "coordinates",
+                    distanceMultiplier: 0.000621371
+                }
+            },
+            {$match: {subcategory: {$in: product_types}}},
+            {
+                $group: {
+                    _id: "$subcategory",
+                    coordinates: {$push: '$coordinates'},
+                    distances: { $push: '$distance' },
+                    ids: {"$push": '$_id'},
+                    names: {$push: '$name'},
+                    addresses: {$push: '$address'}
+                }
+            }
+])
+>>getDistance.js file
+>>>call DistanceCalculator.find() function to get min distance among home and shops and return response with dist and path
+>>callback(response)
+>return json data with status as 200
+>success: calculateAndDisplayRoute function will be called in google_maps.js
+>GoogleMapsAPI
